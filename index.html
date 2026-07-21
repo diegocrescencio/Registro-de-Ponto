@@ -398,6 +398,7 @@
         <div class="btnrow">
           <button class="btn btn-ghost btn-sm" id="loadLedgerBtn">Carregar</button>
           <button class="btn btn-teal btn-sm" id="exportCsvBtn">⬇ Exportar CSV p/ contadora</button>
+          <button class="btn btn-danger btn-sm" id="wipeMonthBtn">🗑 Apagar registros do mês</button>
         </div>
         <div id="ledgerWrap"></div>
       </section>
@@ -491,6 +492,10 @@ async function sset(key, value){
     });
     return true;
   }catch(e){ console.error('Firestore set falhou', key, e); toast('Erro ao salvar — verifique sua internet.'); return null; }
+}
+async function sdelete(key){
+  try{ await db.collection('ponto_certo').doc(key).delete(); return true; }
+  catch(e){ console.error('Firestore delete falhou', key, e); return null; }
 }
 
 /* ---------------- estado ---------------- */
@@ -952,6 +957,7 @@ async function renderLedger(){
       <td class="edit" data-day="${dKey}" data-field="saida">${rec.saida || '—'}</td>
       <td>${hasAny ? fmtMinutes(mins) : '—'}</td>
       <td>${hasAny ? `<button class="btn btn-ghost btn-sm" data-photos="${dKey}">📷</button>` : ''}</td>
+      <td>${hasAny ? `<button class="btn btn-ghost btn-sm" data-wipeday="${dKey}" title="Apagar este dia">🗑</button>` : ''}</td>
     </tr>`;
   }
   const balance = totalMins - expectedTotalMins;
@@ -959,11 +965,12 @@ async function renderLedger(){
     <td colspan="5">Total do mês (${decHours(totalMins)}h) · previsto ${decHours(expectedTotalMins)}h</td>
     <td class="${balance>=0?'balpos':'balneg'}">${balance>=0?'+':''}${fmtMinutes(balance)}</td>
     <td></td>
+    <td></td>
   </tr>`;
 
   wrap.innerHTML = `
     <table class="ledger">
-      <thead><tr><th>Dia</th><th>Entrada</th><th>Saída alm.</th><th>Retorno</th><th>Saída</th><th>Horas</th><th>Foto</th></tr></thead>
+      <thead><tr><th>Dia</th><th>Entrada</th><th>Saída alm.</th><th>Retorno</th><th>Saída</th><th>Horas</th><th>Foto</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
 
@@ -972,6 +979,21 @@ async function renderLedger(){
       const dKey = btn.dataset.photos;
       const fotos = await sget(`fotos:${empId}:${dKey}`);
       openPhotoLightbox(dKey, fotos);
+    };
+  });
+
+  wrap.querySelectorAll('[data-wipeday]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const dKey = btn.dataset.wipeday;
+      const [dy,dm,dd] = dKey.split('-');
+      if(!confirm(`Apagar todos os horários e fotos do dia ${dd}/${dm}/${dy}?`)) return;
+      const monthData2 = await getMonthRecords(empId, monthInput);
+      delete monthData2[dKey];
+      await saveMonthRecords(empId, monthInput, monthData2);
+      await sdelete(`fotos:${empId}:${dKey}`);
+      toast(`Dia ${dd}/${dm} apagado.`);
+      renderLedger();
+      renderTodayOverview();
     };
   });
 
@@ -1029,6 +1051,24 @@ document.getElementById('exportCsvBtn').onclick = async ()=>{
   a.href = url; a.download = `ponto_${(emp?emp.name:'funcionaria').replace(/\s+/g,'_')}_${monthInput}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+};
+
+document.getElementById('wipeMonthBtn').onclick = async ()=>{
+  const empId = document.getElementById('adm-emp').value;
+  const monthInput = document.getElementById('adm-month').value;
+  if(!empId || !monthInput){ toast('Selecione funcionária e mês.'); return; }
+  const emp = EMPLOYEES.find(e=>e.id===empId);
+  const confirmMsg = `Isso vai apagar TODOS os horários e fotos de ${emp ? emp.name : 'funcionária'} em ${monthInput}. Não dá pra desfazer. Digite APAGAR para confirmar:`;
+  const typed = prompt(confirmMsg);
+  if(typed !== 'APAGAR'){ toast('Cancelado — nada foi apagado.'); return; }
+  await saveMonthRecords(empId, monthInput, {});
+  const nDays = daysInMonth(monthInput);
+  for(let d=1; d<=nDays; d++){
+    await sdelete(`fotos:${empId}:${monthInput}-${pad(d)}`);
+  }
+  toast('Registros do mês apagados.');
+  renderLedger();
+  renderTodayOverview();
 };
 
 /* ---------------- navegação de abas + gate de senha ---------------- */
