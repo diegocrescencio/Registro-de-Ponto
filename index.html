@@ -245,6 +245,7 @@
   .ov-working{background:rgba(46,110,98,0.16);color:var(--teal-dark);}
   .ov-lunch{background:rgba(201,138,44,0.2);color:var(--amber-dark);}
   .ov-done{background:var(--teal);color:#fff;}
+  .ov-off{background:rgba(47,90,140,0.16);color:#2F5A8C;}
 
   .installbar{
     display:none;align-items:center;justify-content:space-between;gap:10px;
@@ -376,6 +377,19 @@
           <div>
             <label for="newEmpPin">PIN de acesso (4 dígitos)</label>
             <input id="newEmpPin" type="text" inputmode="numeric" maxlength="4" placeholder="Ex: 1234">
+          </div>
+          <div>
+            <label for="newEmpDayOff">Folga fixa semanal</label>
+            <select id="newEmpDayOff">
+              <option value="">Nenhuma</option>
+              <option value="0">Domingo</option>
+              <option value="1">Segunda-feira</option>
+              <option value="2">Terça-feira</option>
+              <option value="3">Quarta-feira</option>
+              <option value="4">Quinta-feira</option>
+              <option value="5">Sexta-feira</option>
+              <option value="6">Sábado</option>
+            </select>
           </div>
         </div>
         <div class="btnrow"><button class="btn btn-primary btn-sm" id="addEmpBtn">Adicionar funcionária(o)</button></div>
@@ -822,17 +836,26 @@ async function loadEmployees(){
   renderEmpList();
 }
 
+const WEEKDAY_NAMES = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+
 function renderEmpList(){
   const wrap = document.getElementById('empList');
   if(!EMPLOYEES.length){ wrap.innerHTML = '<p class="hint">Nenhuma funcionária cadastrada ainda.</p>'; return; }
-  wrap.innerHTML = EMPLOYEES.map(e=>`
+  wrap.innerHTML = EMPLOYEES.map(e=>{
+    const dayOffLabel = (e.dayOff!==undefined && e.dayOff!==null && e.dayOff!=='') ? ` · folga ${WEEKDAY_NAMES[e.dayOff]}` : '';
+    return `
     <div class="emprow">
-      <div><div class="nm">${e.name}</div><div class="meta">${e.dailyHours || 8}h/dia · PIN ${e.pin ? '••••' : '⚠ não definido'}</div></div>
-      <div class="btnrow" style="margin:0;">
+      <div><div class="nm">${e.name}</div><div class="meta">${e.dailyHours || 8}h/dia · PIN ${e.pin ? '••••' : '⚠ não definido'}${dayOffLabel}</div></div>
+      <div class="btnrow" style="margin:0;flex-wrap:wrap;justify-content:flex-end;">
+        <select class="dayoffsel" data-dayoff="${e.id}" style="width:auto;padding:6px 8px;font-size:12px;">
+          <option value="">Sem folga fixa</option>
+          ${WEEKDAY_NAMES.map((n,i)=>`<option value="${i}" ${String(e.dayOff)===String(i)?'selected':''}>Folga ${n}</option>`).join('')}
+        </select>
         <button class="btn btn-ghost btn-sm" data-pin="${e.id}">Redefinir PIN</button>
         <button class="btn btn-danger btn-sm" data-remove="${e.id}">Remover</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   wrap.querySelectorAll('[data-remove]').forEach(btn=>{
     btn.onclick = async ()=>{
       if(!confirm('Remover esta funcionária? O histórico de ponto não será apagado.')) return;
@@ -851,6 +874,16 @@ function renderEmpList(){
       await sset('employees', EMPLOYEES);
       renderEmpList();
       toast(`PIN de ${emp.name} atualizado.`);
+    };
+  });
+  wrap.querySelectorAll('[data-dayoff]').forEach(sel=>{
+    sel.onchange = async ()=>{
+      const emp = EMPLOYEES.find(x=>x.id===sel.dataset.dayoff);
+      emp.dayOff = sel.value === '' ? null : Number(sel.value);
+      await sset('employees', EMPLOYEES);
+      renderEmpList();
+      renderTodayOverview();
+      toast(`Folga de ${emp.name} atualizada.`);
     };
   });
 }
@@ -893,13 +926,16 @@ document.getElementById('addEmpBtn').onclick = async ()=>{
   const name = document.getElementById('newEmpName').value.trim();
   const hours = parseFloat(document.getElementById('newEmpHours').value) || 8;
   const pin = document.getElementById('newEmpPin').value.trim();
+  const dayOffVal = document.getElementById('newEmpDayOff').value;
+  const dayOff = dayOffVal === '' ? null : Number(dayOffVal);
   if(!name){ toast('Digite o nome da funcionária.'); return; }
   if(!/^\d{4}$/.test(pin)){ toast('O PIN precisa ter exatamente 4 números.'); return; }
-  EMPLOYEES.push({ id: uid(), name, dailyHours: hours, pin });
+  EMPLOYEES.push({ id: uid(), name, dailyHours: hours, pin, dayOff });
   await sset('employees', EMPLOYEES);
   document.getElementById('newEmpName').value='';
   document.getElementById('newEmpHours').value='';
   document.getElementById('newEmpPin').value='';
+  document.getElementById('newEmpDayOff').value='';
   renderEmpSelect(); renderEmpList();
   toast(`${name} cadastrada.`);
 };
@@ -910,9 +946,12 @@ async function renderTodayOverview(){
   if(!EMPLOYEES.length){ wrap.innerHTML = '<p class="hint">Cadastre funcionárias para ver o status do dia.</p>'; return; }
   wrap.innerHTML = '<p class="hint">Carregando…</p>';
   const rows = await Promise.all(EMPLOYEES.map(async emp=>{
+    const todayWeekday = new Date().getDay();
+    const isDayOff = emp.dayOff!==undefined && emp.dayOff!==null && Number(emp.dayOff)===todayWeekday;
     const { rec } = await getTodayRecord(emp.id);
     let chipClass = 'ov-wait', label = 'Não chegou';
-    if(rec.entrada && !rec.almocoInicio){ chipClass='ov-working'; label = `Trabalhando desde ${rec.entrada}`; }
+    if(isDayOff && !ORDER.some(k=>rec[k])){ chipClass='ov-off'; label = '🟦 De folga hoje'; }
+    else if(rec.entrada && !rec.almocoInicio){ chipClass='ov-working'; label = `Trabalhando desde ${rec.entrada}`; }
     else if(rec.almocoInicio && !rec.almocoFim){ chipClass='ov-lunch'; label = `No almoço desde ${rec.almocoInicio}`; }
     else if(rec.almocoFim && !rec.saida){ chipClass='ov-working'; label = `Trabalhando desde ${rec.almocoFim}`; }
     else if(rec.saida){ chipClass='ov-done'; label = `Finalizado · ${fmtMinutes(computeDayMinutes(rec))}`; }
@@ -948,9 +987,21 @@ async function renderLedger(){
     const rec = monthData[dKey] || {};
     const hasAny = ORDER.some(k=>rec[k]);
     const mins = computeDayMinutes(rec);
+    const weekday = new Date(y, m-1, d).getDay();
+    const isDayOff = emp && emp.dayOff!==undefined && emp.dayOff!==null && Number(emp.dayOff)===weekday;
     if(hasAny){ totalMins += mins; expectedTotalMins += expectedDaily*60; }
+    if(isDayOff && !hasAny){
+      rows += `<tr style="opacity:.6;">
+        <td>${pad(d)}/${pad(m)} <span style="color:var(--muted)">${weekdayShort(y,m,d)}</span></td>
+        <td colspan="4" style="text-align:center;color:var(--teal-dark);font-weight:600;">🟦 Folga fixa</td>
+        <td>—</td>
+        <td></td>
+        <td></td>
+      </tr>`;
+      continue;
+    }
     rows += `<tr>
-      <td>${pad(d)}/${pad(m)} <span style="color:var(--muted)">${weekdayShort(y,m,d)}</span></td>
+      <td>${pad(d)}/${pad(m)} <span style="color:var(--muted)">${weekdayShort(y,m,d)}</span>${isDayOff?' <span style="color:var(--teal-dark);font-size:11px;">(folga)</span>':''}</td>
       <td class="edit" data-day="${dKey}" data-field="entrada">${rec.entrada || '—'}</td>
       <td class="edit" data-day="${dKey}" data-field="almocoInicio">${rec.almocoInicio || '—'}</td>
       <td class="edit" data-day="${dKey}" data-field="almocoFim">${rec.almocoFim || '—'}</td>
