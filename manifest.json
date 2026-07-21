@@ -1,6 +1,6 @@
 {
-  "name": "Ponto Certo",
-  "short_name": "Ponto Certo",
+  "name": "Registro de Ponto",
+  "short_name": "Registro de Ponto",
   "description": "Controle de ponto com geolocalização",
   "start_url": "./index.html",
   "scope": "./",
