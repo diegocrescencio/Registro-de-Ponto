@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Ponto Certo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bitter:wght@600;700;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14181F;
+    --ink-soft:#232A36;
+    --paper:#F5F3EA;
+    --paper-2:#EDE9DA;
+    --line:#D8D2BE;
+    --amber:#C98A2C;
+    --amber-dark:#9C6A1C;
+    --teal:#2E6E62;
+    --teal-dark:#1F4D44;
+    --danger:#B5432E;
+    --muted:#767061;
+    --text:#F5F3EA;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    max-width:520px;
+    margin:0 auto;
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 12px 0, transparent 8px, var(--ink) 8.5px) 0 0/24px 24px repeat-x,
+      var(--ink-soft);
+    display:flex;
+    flex-direction:column;
+    position:relative;
+  }
+  header.top{
+    padding:22px 20px 14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:1px dashed rgba(245,243,234,0.18);
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand .mark{
+    width:34px;height:34px;border-radius:50%;
+    background:var(--amber);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink);font-family:'Bitter',serif;font-weight:900;font-size:16px;
+    box-shadow:0 0 0 3px rgba(201,138,44,0.25);
+  }
+  .brand h1{font-family:'Bitter',serif;font-size:18px;margin:0;font-weight:700;letter-spacing:.2px;}
+  .brand small{display:block;color:var(--muted);font-size:11px;letter-spacing:.4px;text-transform:uppercase;}
+  .tabbtn{
+    background:transparent;border:1px solid rgba(245,243,234,0.25);
+    color:var(--text);font-family:'Inter',sans-serif;font-size:12px;
+    padding:8px 12px;border-radius:20px;cursor:pointer;letter-spacing:.3px;
+  }
+  .tabbtn:hover{border-color:var(--amber);color:var(--amber);}
+
+  main{flex:1;padding:20px;}
+  .hidden{display:none !important;}
+
+  .clockcard{
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:18px;
+    padding:22px 20px 20px;
+    position:relative;
+    box-shadow:0 12px 30px rgba(0,0,0,0.35);
+    overflow:hidden;
+  }
+  .clockcard::before{
+    content:"";
+    position:absolute;left:0;right:0;bottom:-9px;height:18px;
+    background-image:radial-gradient(circle, var(--ink-soft) 6px, transparent 6.5px);
+    background-size:22px 18px; background-repeat:repeat-x;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
+    color:var(--amber-dark);font-weight:600;margin-bottom:4px;
+  }
+  .bigclock{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:44px;font-weight:600;letter-spacing:1px;
+    line-height:1;margin:2px 0 2px;
+  }
+  .today-date{font-size:13px;color:var(--muted);margin-bottom:16px;text-transform:capitalize;}
+
+  label{font-size:12px;font-weight:600;color:var(--muted);display:block;margin:12px 0 6px;}
+  select, input{
+    width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);
+    background:#fff;color:var(--ink);font-family:'Inter',sans-serif;font-size:14px;
+  }
+  select:focus, input:focus{outline:2px solid var(--amber);border-color:var(--amber);}
+
+  .geo-status{
+    margin-top:14px;padding:10px 12px;border-radius:10px;
+    font-size:12.5px;display:flex;align-items:center;gap:8px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .geo-ok{background:rgba(46,110,98,0.12);color:var(--teal-dark);}
+  .geo-bad{background:rgba(181,67,46,0.12);color:var(--danger);}
+  .geo-wait{background:rgba(118,112,97,0.12);color:var(--muted);}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none;}
+  .geo-ok .dot{background:var(--teal);}
+  .geo-bad .dot{background:var(--danger);}
+  .geo-wait .dot{background:var(--muted);}
+
+  .punchgrid{display:grid;grid-template-columns:1fr;gap:10px;margin-top:16px;}
+  .steps{display:flex;gap:6px;margin-top:14px;}
+  .step{flex:1;height:5px;border-radius:3px;background:var(--line);}
+  .step.done{background:var(--teal);}
+  .step.active{background:var(--amber);}
+
+  .punchbtn{
+    width:100%;padding:16px;border-radius:14px;border:none;cursor:pointer;
+    font-family:'Bitter',serif;font-weight:700;font-size:16px;
+    background:var(--ink);color:var(--paper);
+    display:flex;align-items:center;justify-content:space-between;
+    box-shadow:0 4px 0 var(--amber-dark);
+    transition:transform .06s ease;
+  }
+  .punchbtn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--amber-dark);}
+  .punchbtn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;}
+  .punchbtn span.arrow{font-family:'IBM Plex Mono',monospace;color:var(--amber);}
+
+  .donebox{
+    background:var(--teal);color:#fff;border-radius:14px;padding:16px;
+    font-family:'Bitter',serif;text-align:center;margin-top:16px;
+  }
+  .donebox .h{font-size:22px;font-weight:900;}
+  .donebox .s{font-size:12px;opacity:.85;margin-top:2px;font-family:'Inter',sans-serif;}
+
+  .todaytable{margin-top:16px;border-top:1px dashed var(--line);padding-top:12px;}
+  .todaytable .row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;}
+  .todaytable .row b{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .todaytable .muted-val{color:var(--muted);}
+
+  .stamp{
+    position:fixed;left:50%;top:40%;transform:translate(-50%,-50%) rotate(-10deg) scale(2.4);
+    opacity:0;pointer-events:none;z-index:50;
+    border:5px solid var(--danger);color:var(--danger);
+    padding:10px 22px;border-radius:10px;
+    font-family:'Bitter',serif;font-weight:900;font-size:22px;letter-spacing:2px;
+    text-transform:uppercase;background:rgba(245,243,234,0.94);
+    transition:transform .35s cubic-bezier(.2,1.6,.4,1), opacity .35s ease;
+  }
+  .stamp.show{opacity:1;transform:translate(-50%,-50%) rotate(-10deg) scale(1);}
+  .stamp small{display:block;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0;margin-top:2px;}
+
+  section.card{
+    background:var(--paper);color:var(--ink);border-radius:16px;padding:18px;margin-bottom:14px;
+  }
+  section.card h2{font-family:'Bitter',serif;font-size:16px;margin:0 0 4px;}
+  section.card p.hint{font-size:12px;color:var(--muted);margin:0 0 10px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .btn{
+    padding:10px 14px;border-radius:10px;border:none;cursor:pointer;
+    font-family:'Inter',sans-serif;font-weight:600;font-size:13px;
+  }
+  .btn-primary{background:var(--ink);color:var(--paper);}
+  .btn-ghost{background:transparent;border:1.5px solid var(--line);color:var(--ink);}
+  .btn-teal{background:var(--teal);color:#fff;}
+  .btn-danger{background:transparent;color:var(--danger);border:1.5px solid var(--danger);}
+  .btn-sm{padding:6px 10px;font-size:12px;}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+
+  .emplist{margin-top:10px;}
+  .emprow{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 0;border-bottom:1px solid var(--line);font-size:13px;
+  }
+  .emprow:last-child{border-bottom:none;}
+  .emprow .nm{font-weight:600;}
+  .emprow .meta{color:var(--muted);font-size:11.5px;font-family:'IBM Plex Mono',monospace;}
+
+  table.ledger{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;}
+  table.ledger th{
+    text-align:left;font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+    text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--ink);
+    padding:6px 4px;
+  }
+  table.ledger td{padding:7px 4px;border-bottom:1px dashed var(--line);font-family:'IBM Plex Mono',monospace;}
+  table.ledger tr.total td{border-top:2px solid var(--ink);border-bottom:none;font-weight:700;padding-top:9px;}
+  table.ledger td.edit{cursor:pointer;color:var(--teal-dark);text-decoration:underline dotted;}
+  .balpos{color:var(--teal-dark);}
+  .balneg{color:var(--danger);}
+
+  .gate{
+    position:fixed;inset:0;background:rgba(20,24,31,0.92);z-index:80;
+    display:flex;align-items:center;justify-content:center;padding:24px;
+  }
+  .gatebox{background:var(--paper);color:var(--ink);border-radius:16px;padding:22px;max-width:340px;width:100%;}
+  .gatebox h3{font-family:'Bitter',serif;margin:0 0 6px;}
+  .gatebox p{font-size:13px;color:var(--muted);margin:0 0 12px;}
+
+  footer{padding:16px 20px 26px;text-align:center;color:var(--muted);font-size:11px;font-family:'IBM Plex Mono',monospace;}
+
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:10px;
+    font-size:13px;opacity:0;transition:all .25s ease;z-index:90;max-width:80%;text-align:center;
+    border:1px solid var(--amber);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  select#adm-month{max-width:160px;}
+  .subgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media (min-width:480px){.emp-add-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="top">
+    <div class="brand">
+      <div class="mark">P</div>
+      <div>
+        <h1 id="storeNameLabel">Ponto Certo</h1>
+        <small>controle de jornada</small>
+      </div>
+    </div>
+    <button class="tabbtn" id="toggleAdminBtn">Painel admin</button>
+  </header>
+
+  <main>
+    <!-- EMPLOYEE VIEW -->
+    <div id="view-clock">
+
+      <div class="clockcard">
+        <div class="eyebrow">Registro de ponto</div>
+        <div class="bigclock" id="liveClock">--:--:--</div>
+        <div class="today-date" id="liveDate">-</div>
+
+        <label for="empSelect">Funcionária(o)</label>
+        <select id="empSelect"></select>
+
+        <div id="geoStatus" class="geo-status geo-wait"><span class="dot"></span> <span>Obtendo localização…</span></div>
+
+        <div class="steps" id="stepsBar"></div>
+
+        <div class="punchgrid" id="punchGrid"></div>
+
+        <div id="todaySummary"></div>
+      </div>
+
+    </div>
+
+    <!-- ADMIN VIEW -->
+    <div id="view-admin" class="hidden">
+
+      <section class="card">
+        <h2>Local da loja</h2>
+        <p class="hint">Defina onde fica a loja. As funcionárias só conseguem bater o ponto dentro do raio configurado.</p>
+        <label for="storeName">Nome da loja</label>
+        <input id="storeName" type="text" placeholder="Ex: Loja Centro">
+        <div class="row2">
+          <div>
+            <label for="storeLat">Latitude</label>
+            <input id="storeLat" type="text" placeholder="-22.0087">
+          </div>
+          <div>
+            <label for="storeLng">Longitude</label>
+            <input id="storeLng" type="text" placeholder="-47.8909">
+          </div>
+        </div>
+        <label for="storeRadius">Raio permitido (metros)</label>
+        <input id="storeRadius" type="number" min="5" step="5" placeholder="100">
+        <div class="btnrow">
+          <button class="btn btn-primary btn-sm" id="useMyLocationBtn">📍 Usar minha localização atual</button>
+          <button class="btn btn-teal btn-sm" id="saveConfigBtn">Salvar configuração</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Senha do painel admin</h2>
+        <p class="hint">Protege o painel administrativo. Padrão inicial: <b>admin123</b> — troque assim que possível.</p>
+        <label for="newAdminPass">Nova senha</label>
+        <input id="newAdminPass" type="password" placeholder="Digite a nova senha">
+        <div class="btnrow"><button class="btn btn-ghost btn-sm" id="saveAdminPassBtn">Atualizar senha</button></div>
+      </section>
+
+      <section class="card">
+        <h2>Funcionárias(os)</h2>
+        <p class="hint">Cadastre quem pode bater ponto. A carga horária diária é usada só para comparar o saldo do mês.</p>
+        <div class="emp-add-grid">
+          <div>
+            <label for="newEmpName">Nome</label>
+            <input id="newEmpName" type="text" placeholder="Ex: Maria Souza">
+          </div>
+          <div>
+            <label for="newEmpHours">Carga horária diária prevista (h)</label>
+            <input id="newEmpHours" type="number" step="0.25" placeholder="8">
+          </div>
+        </div>
+        <div class="btnrow"><button class="btn btn-primary btn-sm" id="addEmpBtn">Adicionar funcionária(o)</button></div>
+        <div class="emplist" id="empList"></div>
+      </section>
+
+      <section class="card">
+        <h2>Espelho de ponto do mês</h2>
+        <p class="hint">Selecione a funcionária e o mês para conferir e corrigir os registros. Clique num horário para editar.</p>
+        <div class="row2">
+          <div>
+            <label for="adm-emp">Funcionária(o)</label>
+            <select id="adm-emp"></select>
+          </div>
+          <div>
+            <label for="adm-month">Mês</label>
+            <input id="adm-month" type="month">
+          </div>
+        </div>
+        <div class="btnrow">
+          <button class="btn btn-ghost btn-sm" id="loadLedgerBtn">Carregar</button>
+          <button class="btn btn-teal btn-sm" id="exportCsvBtn">⬇ Exportar CSV p/ contadora</button>
+        </div>
+        <div id="ledgerWrap"></div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer id="mainFooter">Ponto Certo · dados salvos neste link · sem GPS não há como bater o ponto</footer>
+</div>
+
+<div class="gate hidden" id="adminGate">
+  <div class="gatebox">
+    <h3>Painel administrativo</h3>
+    <p>Digite a senha de administrador para continuar.</p>
+    <input id="gatePassInput" type="password" placeholder="Senha">
+    <div class="btnrow">
+      <button class="btn btn-primary btn-sm" id="gateEnterBtn">Entrar</button>
+      <button class="btn btn-ghost btn-sm" id="gateCancelBtn">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="stamp" id="stampEl"></div>
+<div class="toast" id="toastEl"></div>
+
+<script>
+/* ---------------- utilidades de storage ---------------- */
+async function sget(key){
+  try{ const r = await window.storage.get(key, true); return r ? JSON.parse(r.value) : null; }
+  catch(e){ return null; }
+}
+async function sset(key, value){
+  try{ return await window.storage.set(key, JSON.stringify(value), true); }
+  catch(e){ console.error('storage set falhou', e); return null; }
+}
+
+/* ---------------- estado ---------------- */
+let CONFIG = null;
+let EMPLOYEES = [];
+let currentEmpId = null;
+let geo = { lat:null, lng:null, ok:false, dist:null, watching:false };
+
+const ORDER = ['entrada','almocoInicio','almocoFim','saida'];
+const LABELS = { entrada:'Entrada', almocoInicio:'Início do almoço', almocoFim:'Retorno do almoço', saida:'Saída' };
+const ARROWS = { entrada:'chegando', almocoInicio:'saindo p/ almoço', almocoFim:'voltando do almoço', saida:'saindo' };
+
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function pad(n){ return String(n).padStart(2,'0'); }
+function dateKey(d=new Date()){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function monthKey(d=new Date()){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}`; }
+function timeStr(d=new Date()){ return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+
+function toast(msg){
+  const t = document.getElementById('toastEl');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+/* ---------------- distância (haversine) ---------------- */
+function distMeters(lat1,lon1,lat2,lon2){
+  const R = 6371000;
+  const toRad = x => x*Math.PI/180;
+  const dLat = toRad(lat2-lat1);
+  const dLon = toRad(lon2-lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R*c;
+}
+
+/* ---------------- relógio ao vivo ---------------- */
+function tickClock(){
+  const now = new Date();
+  document.getElementById('liveClock').textContent = timeStr(now);
+  document.getElementById('liveDate').textContent = now.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+}
+setInterval(tickClock, 1000);
+
+/* ---------------- geolocalização (tela de ponto) ---------------- */
+function startGeoWatch(){
+  const statusEl = document.getElementById('geoStatus');
+  if(!navigator.geolocation){
+    statusEl.className = 'geo-status geo-bad';
+    statusEl.innerHTML = '<span class="dot"></span><span>Este navegador não suporta geolocalização.</span>';
+    return;
+  }
+  navigator.geolocation.watchPosition(pos=>{
+    geo.lat = pos.coords.latitude;
+    geo.lng = pos.coords.longitude;
+    evaluateGeo();
+  }, err=>{
+    geo.ok = false;
+    statusEl.className = 'geo-status geo-bad';
+    statusEl.innerHTML = `<span class="dot"></span><span>Não foi possível obter sua localização (${err.code===1?'permissão negada':'sinal indisponível'}).</span>`;
+    renderPunchGrid();
+  }, { enableHighAccuracy:true, maximumAge:5000, timeout:15000 });
+}
+
+function evaluateGeo(){
+  const statusEl = document.getElementById('geoStatus');
+  if(!CONFIG || CONFIG.lat==null || CONFIG.lng==null){
+    statusEl.className = 'geo-status geo-bad';
+    statusEl.innerHTML = '<span class="dot"></span><span>A loja ainda não tem localização configurada (peça pro admin).</span>';
+    geo.ok = false;
+    renderPunchGrid();
+    return;
+  }
+  if(geo.lat==null){
+    statusEl.className = 'geo-status geo-wait';
+    statusEl.innerHTML = '<span class="dot"></span><span>Obtendo localização…</span>';
+    return;
+  }
+  const d = distMeters(geo.lat, geo.lng, CONFIG.lat, CONFIG.lng);
+  geo.dist = d;
+  geo.ok = d <= (CONFIG.radius || 100);
+  if(geo.ok){
+    statusEl.className = 'geo-status geo-ok';
+    statusEl.innerHTML = `<span class="dot"></span><span>Dentro do alcance · você está a ${Math.round(d)} m da loja</span>`;
+  } else {
+    statusEl.className = 'geo-status geo-bad';
+    statusEl.innerHTML = `<span class="dot"></span><span>Fora do alcance · você está a ${Math.round(d)} m (máx. ${CONFIG.radius} m)</span>`;
+  }
+  renderPunchGrid();
+}
+
+/* ---------------- registros do dia ---------------- */
+async function getMonthRecords(empId, mKey){
+  const data = await sget(`ponto:${empId}:${mKey}`);
+  return data || {};
+}
+async function saveMonthRecords(empId, mKey, data){
+  await sset(`ponto:${empId}:${mKey}`, data);
+}
+
+async function getTodayRecord(empId){
+  const mKey = monthKey();
+  const dKey = dateKey();
+  const monthData = await getMonthRecords(empId, mKey);
+  return { monthData, dKey, mKey, rec: monthData[dKey] || {} };
+}
+
+function nextAction(rec){
+  for(const key of ORDER){ if(!rec[key]) return key; }
+  return null;
+}
+
+function computeDayMinutes(rec){
+  let mins = 0;
+  if(rec.entrada && rec.almocoInicio) mins += diffMin(rec.entrada, rec.almocoInicio);
+  if(rec.almocoFim && rec.saida) mins += diffMin(rec.almocoFim, rec.saida);
+  return mins;
+}
+function diffMin(t1, t2){
+  const [h1,m1,s1] = t1.split(':').map(Number);
+  const [h2,m2,s2] = t2.split(':').map(Number);
+  return ((h2*3600+m2*60+s2) - (h1*3600+m1*60+s1))/60;
+}
+function fmtMinutes(mins){
+  if(mins==null || isNaN(mins)) return '--';
+  const sign = mins<0 ? '-' : '';
+  mins = Math.abs(Math.round(mins));
+  const h = Math.floor(mins/60), m = mins%60;
+  return `${sign}${h}h${pad(m)}`;
+}
+function decHours(mins){ return (mins/60).toFixed(2).replace('.', ','); }
+
+/* ---------------- render: seletor de funcionária ---------------- */
+function renderEmpSelect(){
+  const sel = document.getElementById('empSelect');
+  sel.innerHTML = EMPLOYEES.length
+    ? EMPLOYEES.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')
+    : '<option value="">Nenhuma cadastrada — vá ao painel admin</option>';
+  if(!currentEmpId && EMPLOYEES.length) currentEmpId = EMPLOYEES[0].id;
+  if(currentEmpId) sel.value = currentEmpId;
+
+  const admSel = document.getElementById('adm-emp');
+  admSel.innerHTML = EMPLOYEES.map(e=>`<option value="${e.id}">${e.name}</option>`).join('');
+}
+
+/* ---------------- render: grade de botões de ponto ---------------- */
+async function renderPunchGrid(){
+  const grid = document.getElementById('punchGrid');
+  const stepsBar = document.getElementById('stepsBar');
+  const summaryEl = document.getElementById('todaySummary');
+  if(!currentEmpId){ grid.innerHTML=''; stepsBar.innerHTML=''; summaryEl.innerHTML=''; return; }
+
+  const { rec } = await getTodayRecord(currentEmpId);
+  const next = nextAction(rec);
+
+  stepsBar.innerHTML = ORDER.map(key=>{
+    let cls = 'step';
+    if(rec[key]) cls += ' done';
+    else if(key===next) cls += ' active';
+    return `<div class="${cls}"></div>`;
+  }).join('');
+
+  if(next === null){
+    grid.innerHTML = '';
+    const mins = computeDayMinutes(rec);
+    summaryEl.innerHTML = `
+      <div class="donebox">
+        <div class="h">${fmtMinutes(mins)} hoje</div>
+        <div class="s">jornada completa · ${rec.entrada} → ${rec.almocoInicio} · ${rec.almocoFim} → ${rec.saida}</div>
+      </div>`;
+    return;
+  }
+
+  summaryEl.innerHTML = ORDER.filter(k=>rec[k]).length ? `
+    <div class="todaytable">
+      ${ORDER.filter(k=>rec[k]).map(k=>`<div class="row"><span>${LABELS[k]}</span><b>${rec[k]}</b></div>`).join('')}
+    </div>` : '';
+
+  const canPunch = geo.ok;
+  grid.innerHTML = `
+    <button class="punchbtn" id="mainPunchBtn" ${canPunch?'':'disabled'}>
+      <span>${LABELS[next]}</span>
+      <span class="arrow">${canPunch ? 'bater agora →' : 'fora do alcance'}</span>
+    </button>`;
+  document.getElementById('mainPunchBtn').onclick = ()=>doPunch(next);
+}
+
+async function doPunch(key){
+  if(!geo.ok || !currentEmpId) return;
+  const { monthData, dKey, mKey, rec } = await getTodayRecord(currentEmpId);
+  if(rec[key]) return;
+  const now = new Date();
+  rec[key] = timeStr(now);
+  monthData[dKey] = rec;
+  await saveMonthRecords(currentEmpId, mKey, monthData);
+  showStamp(LABELS[key], rec[key]);
+  renderPunchGrid();
+}
+
+function showStamp(label, time){
+  const el = document.getElementById('stampEl');
+  el.innerHTML = `${label}<small>${time}</small>`;
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 1400);
+}
+
+/* ---------------- config / admin ---------------- */
+async function loadConfig(){
+  CONFIG = await sget('config') || { name:'Ponto Certo', lat:null, lng:null, radius:100, adminPassword:'admin123' };
+  document.getElementById('storeNameLabel').textContent = CONFIG.name || 'Ponto Certo';
+  document.getElementById('storeName').value = CONFIG.name || '';
+  document.getElementById('storeLat').value = CONFIG.lat ?? '';
+  document.getElementById('storeLng').value = CONFIG.lng ?? '';
+  document.getElementById('storeRadius').value = CONFIG.radius ?? 100;
+}
+
+async function loadEmployees(){
+  EMPLOYEES = await sget('employees') || [];
+  renderEmpSelect();
+  renderEmpList();
+}
+
+function renderEmpList(){
+  const wrap = document.getElementById('empList');
+  if(!EMPLOYEES.length){ wrap.innerHTML = '<p class="hint">Nenhuma funcionária cadastrada ainda.</p>'; return; }
+  wrap.innerHTML = EMPLOYEES.map(e=>`
+    <div class="emprow">
+      <div><div class="nm">${e.name}</div><div class="meta">${e.dailyHours || 8}h/dia previstas</div></div>
+      <button class="btn btn-danger btn-sm" data-remove="${e.id}">Remover</button>
+    </div>`).join('');
+  wrap.querySelectorAll('[data-remove]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm('Remover esta funcionária? O histórico de ponto não será apagado.')) return;
+      EMPLOYEES = EMPLOYEES.filter(e=>e.id !== btn.dataset.remove);
+      await sset('employees', EMPLOYEES);
+      renderEmpSelect(); renderEmpList();
+    };
+  });
+}
+
+document.getElementById('useMyLocationBtn').onclick = ()=>{
+  if(!navigator.geolocation){ toast('Geolocalização não suportada neste navegador.'); return; }
+  toast('Obtendo localização atual…');
+  navigator.geolocation.getCurrentPosition(pos=>{
+    document.getElementById('storeLat').value = pos.coords.latitude.toFixed(6);
+    document.getElementById('storeLng').value = pos.coords.longitude.toFixed(6);
+    toast('Localização preenchida — confira e salve.');
+  }, ()=> toast('Não foi possível obter a localização.'), { enableHighAccuracy:true, timeout:15000 });
+};
+
+document.getElementById('saveConfigBtn').onclick = async ()=>{
+  const lat = parseFloat(document.getElementById('storeLat').value);
+  const lng = parseFloat(document.getElementById('storeLng').value);
+  const radius = parseInt(document.getElementById('storeRadius').value, 10);
+  const name = document.getElementById('storeName').value.trim() || 'Ponto Certo';
+  if(isNaN(lat) || isNaN(lng) || isNaN(radius) || radius<5){
+    toast('Preencha latitude, longitude e um raio válido (mín. 5 m).'); return;
+  }
+  CONFIG = { ...CONFIG, name, lat, lng, radius };
+  await sset('config', CONFIG);
+  document.getElementById('storeNameLabel').textContent = name;
+  toast('Configuração salva.');
+  evaluateGeo();
+};
+
+document.getElementById('saveAdminPassBtn').onclick = async ()=>{
+  const val = document.getElementById('newAdminPass').value;
+  if(!val || val.length<4){ toast('Use ao menos 4 caracteres.'); return; }
+  CONFIG = { ...CONFIG, adminPassword: val };
+  await sset('config', CONFIG);
+  document.getElementById('newAdminPass').value = '';
+  toast('Senha atualizada.');
+};
+
+document.getElementById('addEmpBtn').onclick = async ()=>{
+  const name = document.getElementById('newEmpName').value.trim();
+  const hours = parseFloat(document.getElementById('newEmpHours').value) || 8;
+  if(!name){ toast('Digite o nome da funcionária.'); return; }
+  EMPLOYEES.push({ id: uid(), name, dailyHours: hours });
+  await sset('employees', EMPLOYEES);
+  document.getElementById('newEmpName').value='';
+  document.getElementById('newEmpHours').value='';
+  renderEmpSelect(); renderEmpList();
+  toast(`${name} cadastrada.`);
+};
+
+/* ---------------- espelho de ponto (ledger) ---------------- */
+function daysInMonth(mKey){
+  const [y,m] = mKey.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+function weekdayShort(y,m,d){
+  return new Date(y, m-1, d).toLocaleDateString('pt-BR', {weekday:'short'}).replace('.','');
+}
+
+async function renderLedger(){
+  const empId = document.getElementById('adm-emp').value;
+  const monthInput = document.getElementById('adm-month').value; // YYYY-MM
+  const wrap = document.getElementById('ledgerWrap');
+  if(!empId || !monthInput){ wrap.innerHTML = '<p class="hint">Selecione a funcionária e o mês.</p>'; return; }
+  const emp = EMPLOYEES.find(e=>e.id===empId);
+  const monthData = await getMonthRecords(empId, monthInput);
+  const [y,m] = monthInput.split('-').map(Number);
+  const nDays = daysInMonth(monthInput);
+  const expectedDaily = (emp && emp.dailyHours) || 8;
+
+  let rows = '';
+  let totalMins = 0, expectedTotalMins = 0;
+  for(let d=1; d<=nDays; d++){
+    const dKey = `${monthInput}-${pad(d)}`;
+    const rec = monthData[dKey] || {};
+    const hasAny = ORDER.some(k=>rec[k]);
+    const mins = computeDayMinutes(rec);
+    if(hasAny){ totalMins += mins; expectedTotalMins += expectedDaily*60; }
+    rows += `<tr>
+      <td>${pad(d)}/${pad(m)} <span style="color:var(--muted)">${weekdayShort(y,m,d)}</span></td>
+      <td class="edit" data-day="${dKey}" data-field="entrada">${rec.entrada || '—'}</td>
+      <td class="edit" data-day="${dKey}" data-field="almocoInicio">${rec.almocoInicio || '—'}</td>
+      <td class="edit" data-day="${dKey}" data-field="almocoFim">${rec.almocoFim || '—'}</td>
+      <td class="edit" data-day="${dKey}" data-field="saida">${rec.saida || '—'}</td>
+      <td>${hasAny ? fmtMinutes(mins) : '—'}</td>
+    </tr>`;
+  }
+  const balance = totalMins - expectedTotalMins;
+  rows += `<tr class="total">
+    <td colspan="5">Total do mês (${decHours(totalMins)}h) · previsto ${decHours(expectedTotalMins)}h</td>
+    <td class="${balance>=0?'balpos':'balneg'}">${balance>=0?'+':''}${fmtMinutes(balance)}</td>
+  </tr>`;
+
+  wrap.innerHTML = `
+    <table class="ledger">
+      <thead><tr><th>Dia</th><th>Entrada</th><th>Saída alm.</th><th>Retorno</th><th>Saída</th><th>Horas</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  wrap.querySelectorAll('.edit').forEach(cell=>{
+    cell.onclick = async ()=>{
+      const cur = cell.textContent.trim();
+      const val = prompt(`Novo horário para ${LABELS[cell.dataset.field]} (HH:MM ou HH:MM:SS, vazio para apagar):`, cur==='—'?'':cur);
+      if(val===null) return;
+      const monthData2 = await getMonthRecords(empId, monthInput);
+      const rec2 = monthData2[cell.dataset.day] || {};
+      if(val.trim()===''){ delete rec2[cell.dataset.field]; }
+      else{
+        let v = val.trim();
+        if(/^\d{1,2}:\d{2}$/.test(v)) v = v + ':00';
+        if(!/^\d{2}:\d{2}:\d{2}$/.test(v)){ toast('Formato inválido. Use HH:MM.'); return; }
+        rec2[cell.dataset.field] = v;
+      }
+      monthData2[cell.dataset.day] = rec2;
+      await saveMonthRecords(empId, monthInput, monthData2);
+      renderLedger();
+    };
+  });
+}
+
+document.getElementById('loadLedgerBtn').onclick = renderLedger;
+
+document.getElementById('exportCsvBtn').onclick = async ()=>{
+  const empId = document.getElementById('adm-emp').value;
+  const monthInput = document.getElementById('adm-month').value;
+  if(!empId || !monthInput){ toast('Selecione funcionária e mês.'); return; }
+  const emp = EMPLOYEES.find(e=>e.id===empId);
+  const monthData = await getMonthRecords(empId, monthInput);
+  const [y,m] = monthInput.split('-').map(Number);
+  const nDays = daysInMonth(monthInput);
+  const expectedDaily = (emp && emp.dailyHours) || 8;
+  let csv = 'Data;Dia;Entrada;Saida Almoco;Retorno Almoco;Saida;Horas Trabalhadas;Horas Decimais\n';
+  let totalMins = 0;
+  for(let d=1; d<=nDays; d++){
+    const dKey = `${monthInput}-${pad(d)}`;
+    const rec = monthData[dKey] || {};
+    const hasAny = ORDER.some(k=>rec[k]);
+    const mins = computeDayMinutes(rec);
+    if(hasAny) totalMins += mins;
+    csv += [
+      `${pad(d)}/${pad(m)}/${y}`,
+      weekdayShort(y,m,d),
+      rec.entrada||'', rec.almocoInicio||'', rec.almocoFim||'', rec.saida||'',
+      hasAny?fmtMinutes(mins):'', hasAny?decHours(mins):''
+    ].join(';') + '\n';
+  }
+  csv += `;;;;;Total do mes;${fmtMinutes(totalMins)};${decHours(totalMins)}\n`;
+  const blob = new Blob(["\uFEFF"+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `ponto_${(emp?emp.name:'funcionaria').replace(/\s+/g,'_')}_${monthInput}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+/* ---------------- navegação de abas + gate de senha ---------------- */
+document.getElementById('empSelect').onchange = (e)=>{ currentEmpId = e.target.value; renderPunchGrid(); };
+
+document.getElementById('toggleAdminBtn').onclick = ()=>{
+  const adminVisible = !document.getElementById('view-admin').classList.contains('hidden');
+  if(adminVisible){
+    document.getElementById('view-admin').classList.add('hidden');
+    document.getElementById('view-clock').classList.remove('hidden');
+    document.getElementById('toggleAdminBtn').textContent = 'Painel admin';
+  } else {
+    document.getElementById('adminGate').classList.remove('hidden');
+    document.getElementById('gatePassInput').value='';
+    document.getElementById('gatePassInput').focus();
+  }
+};
+document.getElementById('gateCancelBtn').onclick = ()=> document.getElementById('adminGate').classList.add('hidden');
+document.getElementById('gateEnterBtn').onclick = ()=>{
+  const val = document.getElementById('gatePassInput').value;
+  if(val === (CONFIG.adminPassword || 'admin123')){
+    document.getElementById('adminGate').classList.add('hidden');
+    document.getElementById('view-clock').classList.add('hidden');
+    document.getElementById('view-admin').classList.remove('hidden');
+    document.getElementById('toggleAdminBtn').textContent = 'Bater ponto';
+    const now = new Date();
+    document.getElementById('adm-month').value = monthKey(now);
+  } else {
+    toast('Senha incorreta.');
+  }
+};
+document.getElementById('gatePassInput').addEventListener('keydown', e=>{
+  if(e.key==='Enter') document.getElementById('gateEnterBtn').click();
+});
+
+/* ---------------- init ---------------- */
+async function init(){
+  tickClock();
+  await loadConfig();
+  await loadEmployees();
+  startGeoWatch();
+  evaluateGeo();
+  renderPunchGrid();
+}
+init();
+</script>
+</body>
+</html>
