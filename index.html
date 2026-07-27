@@ -439,7 +439,7 @@
 
 <div class="camModal hidden" id="camModal">
   <div class="camBox">
-    <div class="camTitle" id="camTitle">Tire uma foto pra confirmar</div>
+    <div class="camTitle" id="camTitle">Tire uma selfie pra confirmar seu ponto</div>
     <video id="camVideo" autoplay playsinline muted></video>
     <canvas id="camCanvas" class="hidden"></canvas>
     <div class="camMsg" id="camMsg"></div>
@@ -447,7 +447,7 @@
       <button class="btn btn-primary btn-sm" id="camCaptureBtn" disabled>📸 Capturar e bater ponto</button>
     </div>
     <div class="btnrow" style="justify-content:center;">
-      <button class="btn btn-ghost btn-sm" id="camSkipBtn">Bater sem foto</button>
+      <button class="btn btn-ghost btn-sm" id="camRetryBtn">↺ Tentar câmera de novo</button>
       <button class="btn btn-ghost btn-sm" id="camCancelBtn">Cancelar</button>
     </div>
   </div>
@@ -723,18 +723,17 @@ async function renderPunchGrid(){
 
 async function doPunch(key, photo){
   if(!geo.ok || !currentEmpId) return;
+  if(!photo){ toast('A foto é obrigatória para bater o ponto.'); return; }
   const { monthData, dKey, mKey, rec } = await getTodayRecord(currentEmpId);
   if(rec[key]) return;
   const now = new Date();
   rec[key] = timeStr(now);
   monthData[dKey] = rec;
   await saveMonthRecords(currentEmpId, mKey, monthData);
-  if(photo){
-    const fotoKey = `fotos:${currentEmpId}:${dKey}`;
-    const fotos = await sget(fotoKey) || {};
-    fotos[key] = photo;
-    await sset(fotoKey, fotos);
-  }
+  const fotoKey = `fotos:${currentEmpId}:${dKey}`;
+  const fotos = await sget(fotoKey) || {};
+  fotos[key] = photo;
+  await sset(fotoKey, fotos);
   showStamp(LABELS[key], rec[key]);
   renderPunchGrid();
 }
@@ -758,7 +757,7 @@ async function openCamModal(key){
   document.getElementById('camMsg').textContent = 'Abrindo câmera…';
   document.getElementById('camCaptureBtn').disabled = true;
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    document.getElementById('camMsg').textContent = 'Este navegador não suporta câmera. Pode bater o ponto sem foto.';
+    document.getElementById('camMsg').textContent = 'Este navegador/dispositivo não tem câmera disponível. A foto é obrigatória — avise o admin.';
     return;
   }
   try{
@@ -769,7 +768,7 @@ async function openCamModal(key){
     document.getElementById('camMsg').textContent = '';
     document.getElementById('camCaptureBtn').disabled = false;
   }catch(err){
-    document.getElementById('camMsg').textContent = 'Não foi possível acessar a câmera (permissão negada ou indisponível). Pode bater o ponto sem foto.';
+    document.getElementById('camMsg').textContent = 'Câmera bloqueada. Vá nas permissões do navegador, libere o acesso à câmera para este site e toque em "Tentar câmera de novo".';
   }
 }
 function closeCamModal(){
@@ -791,17 +790,15 @@ function capturePhotoDataUrl(){
   return canvas.toDataURL('image/jpeg', 0.5);
 }
 document.getElementById('camCaptureBtn').onclick = async ()=>{
+  if(!camStream){ toast('Câmera não está ativa ainda.'); return; }
   const key = pendingPunchKey;
   let photo = null;
   try{ photo = capturePhotoDataUrl(); }catch(e){ console.error(e); }
+  if(!photo){ toast('Não foi possível capturar a foto. Tente novamente.'); return; }
   closeCamModal();
   await doPunch(key, photo);
 };
-document.getElementById('camSkipBtn').onclick = async ()=>{
-  const key = pendingPunchKey;
-  closeCamModal();
-  await doPunch(key, null);
-};
+document.getElementById('camRetryBtn').onclick = ()=> openCamModal(pendingPunchKey);
 document.getElementById('camCancelBtn').onclick = closeCamModal;
 
 /* ---------------- ver fotos do dia (admin) ---------------- */
@@ -851,6 +848,7 @@ function renderEmpList(){
           <option value="">Sem folga fixa</option>
           ${WEEKDAY_NAMES.map((n,i)=>`<option value="${i}" ${String(e.dayOff)===String(i)?'selected':''}>Folga ${n}</option>`).join('')}
         </select>
+        <button class="btn btn-ghost btn-sm" data-edit="${e.id}">✏️ Editar cadastro</button>
         <button class="btn btn-ghost btn-sm" data-pin="${e.id}">Redefinir PIN</button>
         <button class="btn btn-danger btn-sm" data-remove="${e.id}">Remover</button>
       </div>
@@ -862,6 +860,23 @@ function renderEmpList(){
       EMPLOYEES = EMPLOYEES.filter(e=>e.id !== btn.dataset.remove);
       await sset('employees', EMPLOYEES);
       renderEmpSelect(); renderEmpList();
+    };
+  });
+  wrap.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const emp = EMPLOYEES.find(x=>x.id===btn.dataset.edit);
+      const newName = prompt('Nome da funcionária:', emp.name);
+      if(newName===null) return;
+      if(!newName.trim()){ toast('O nome não pode ficar em branco.'); return; }
+      const newHoursStr = prompt('Carga horária diária prevista (em horas, ex: 8 ou 6.5):', String(emp.dailyHours || 8));
+      if(newHoursStr===null) return;
+      const newHours = parseFloat(newHoursStr.replace(',','.'));
+      if(isNaN(newHours) || newHours<=0 || newHours>16){ toast('Digite um número de horas válido (0 a 16).'); return; }
+      emp.name = newName.trim();
+      emp.dailyHours = newHours;
+      await sset('employees', EMPLOYEES);
+      renderEmpSelect(); renderEmpList(); renderTodayOverview();
+      toast(`Cadastro de ${emp.name} atualizado.`);
     };
   });
   wrap.querySelectorAll('[data-pin]').forEach(btn=>{
