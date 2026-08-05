@@ -246,6 +246,14 @@
   .ov-lunch{background:rgba(201,138,44,0.2);color:var(--amber-dark);}
   .ov-done{background:var(--teal);color:#fff;}
   .ov-off{background:rgba(47,90,140,0.16);color:#2F5A8C;}
+  .ov-closed{background:rgba(181,67,46,0.14);color:var(--danger);}
+
+  .weekday-checks{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px;}
+  .wd-check{
+    display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--ink);
+    background:var(--paper-2);padding:6px 10px;border-radius:8px;cursor:pointer;
+  }
+  .wd-check input{width:auto;padding:0;}
 
   .installbar{
     display:none;align-items:center;justify-content:space-between;gap:10px;
@@ -348,6 +356,18 @@
         </div>
         <label for="storeRadius">Raio permitido (metros)</label>
         <input id="storeRadius" type="number" min="5" step="5" placeholder="100">
+
+        <label>Dias que a loja fica fechada (folga geral, vale pra todas)</label>
+        <div class="weekday-checks" id="closedWeekdaysBox">
+          <label class="wd-check"><input type="checkbox" value="0"> Dom</label>
+          <label class="wd-check"><input type="checkbox" value="1"> Seg</label>
+          <label class="wd-check"><input type="checkbox" value="2"> Ter</label>
+          <label class="wd-check"><input type="checkbox" value="3"> Qua</label>
+          <label class="wd-check"><input type="checkbox" value="4"> Qui</label>
+          <label class="wd-check"><input type="checkbox" value="5"> Sex</label>
+          <label class="wd-check"><input type="checkbox" value="6"> Sáb</label>
+        </div>
+
         <div class="btnrow">
           <button class="btn btn-primary btn-sm" id="useMyLocationBtn">📍 Usar minha localização atual</button>
           <button class="btn btn-teal btn-sm" id="saveConfigBtn">Salvar configuração</button>
@@ -820,11 +840,15 @@ document.getElementById('photoCloseBtn').onclick = ()=> document.getElementById(
 
 async function loadConfig(){
   CONFIG = await sget('config') || { name:'Registro de Ponto', lat:null, lng:null, radius:100, adminPassword:'admin123' };
+  if(!CONFIG.closedWeekdays) CONFIG.closedWeekdays = [0]; // padrão: domingo fechado
   document.getElementById('storeNameLabel').textContent = CONFIG.name || 'Registro de Ponto';
   document.getElementById('storeName').value = CONFIG.name || '';
   document.getElementById('storeLat').value = CONFIG.lat ?? '';
   document.getElementById('storeLng').value = CONFIG.lng ?? '';
   document.getElementById('storeRadius').value = CONFIG.radius ?? 100;
+  document.querySelectorAll('#closedWeekdaysBox input[type=checkbox]').forEach(cb=>{
+    cb.checked = CONFIG.closedWeekdays.includes(Number(cb.value));
+  });
 }
 
 async function loadEmployees(){
@@ -918,14 +942,16 @@ document.getElementById('saveConfigBtn').onclick = async ()=>{
   const lng = parseFloat(document.getElementById('storeLng').value);
   const radius = parseInt(document.getElementById('storeRadius').value, 10);
   const name = document.getElementById('storeName').value.trim() || 'Registro de Ponto';
+  const closedWeekdays = Array.from(document.querySelectorAll('#closedWeekdaysBox input[type=checkbox]:checked')).map(cb=>Number(cb.value));
   if(isNaN(lat) || isNaN(lng) || isNaN(radius) || radius<5){
     toast('Preencha latitude, longitude e um raio válido (mín. 5 m).'); return;
   }
-  CONFIG = { ...CONFIG, name, lat, lng, radius };
+  CONFIG = { ...CONFIG, name, lat, lng, radius, closedWeekdays };
   await sset('config', CONFIG);
   document.getElementById('storeNameLabel').textContent = name;
   toast('Configuração salva.');
   evaluateGeo();
+  renderTodayOverview();
 };
 
 document.getElementById('saveAdminPassBtn').onclick = async ()=>{
@@ -963,9 +989,11 @@ async function renderTodayOverview(){
   const rows = await Promise.all(EMPLOYEES.map(async emp=>{
     const todayWeekday = new Date().getDay();
     const isDayOff = emp.dayOff!==undefined && emp.dayOff!==null && Number(emp.dayOff)===todayWeekday;
+    const isStoreClosed = CONFIG && CONFIG.closedWeekdays && CONFIG.closedWeekdays.includes(todayWeekday);
     const { rec } = await getTodayRecord(emp.id);
     let chipClass = 'ov-wait', label = 'Não chegou';
-    if(isDayOff && !ORDER.some(k=>rec[k])){ chipClass='ov-off'; label = '🟦 De folga hoje'; }
+    if(isStoreClosed && !ORDER.some(k=>rec[k])){ chipClass='ov-closed'; label = '🏬 Loja fechada hoje'; }
+    else if(isDayOff && !ORDER.some(k=>rec[k])){ chipClass='ov-off'; label = '🟦 De folga hoje'; }
     else if(rec.entrada && !rec.almocoInicio){ chipClass='ov-working'; label = `Trabalhando desde ${rec.entrada}`; }
     else if(rec.almocoInicio && !rec.almocoFim){ chipClass='ov-lunch'; label = `No almoço desde ${rec.almocoInicio}`; }
     else if(rec.almocoFim && !rec.saida){ chipClass='ov-working'; label = `Trabalhando desde ${rec.almocoFim}`; }
@@ -1004,7 +1032,18 @@ async function renderLedger(){
     const mins = computeDayMinutes(rec);
     const weekday = new Date(y, m-1, d).getDay();
     const isDayOff = emp && emp.dayOff!==undefined && emp.dayOff!==null && Number(emp.dayOff)===weekday;
+    const isStoreClosed = CONFIG && CONFIG.closedWeekdays && CONFIG.closedWeekdays.includes(weekday);
     if(hasAny){ totalMins += mins; expectedTotalMins += expectedDaily*60; }
+    if(isStoreClosed && !hasAny){
+      rows += `<tr style="opacity:.55;">
+        <td>${pad(d)}/${pad(m)} <span style="color:var(--muted)">${weekdayShort(y,m,d)}</span></td>
+        <td colspan="4" style="text-align:center;color:var(--danger);font-weight:600;">🏬 Loja fechada</td>
+        <td>—</td>
+        <td></td>
+        <td></td>
+      </tr>`;
+      continue;
+    }
     if(isDayOff && !hasAny){
       rows += `<tr style="opacity:.6;">
         <td>${pad(d)}/${pad(m)} <span style="color:var(--muted)">${weekdayShort(y,m,d)}</span></td>
