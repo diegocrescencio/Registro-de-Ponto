@@ -273,6 +273,8 @@
   .camTitle{font-family:'Bitter',serif;font-weight:700;margin-bottom:10px;font-size:16px;}
   #camVideo{width:100%;border-radius:12px;background:#000;max-height:280px;object-fit:cover;transform:scaleX(-1);}
   .camMsg{font-size:12px;color:var(--muted);margin:8px 0;min-height:16px;}
+  #scheduleRows input[type=time]{width:82px;padding:5px 4px;font-size:11px;border-radius:6px;}
+  #scheduleRows td{padding:3px 2px;}
 </style>
 </head>
 <body>
@@ -387,8 +389,8 @@
         <p class="hint">Cadastre quem pode bater ponto. A carga horária diária é usada só para comparar o saldo do mês.</p>
         <div class="emp-add-grid">
           <div>
-            <label for="newEmpName">Nome</label>
-            <input id="newEmpName" type="text" placeholder="Ex: Maria Souza">
+            <label for="newEmpName">Nome completo</label>
+            <input id="newEmpName" type="text" placeholder="Ex: Maria da Silva Souza">
           </div>
           <div>
             <label for="newEmpHours">Carga horária diária prevista (h)</label>
@@ -410,6 +412,18 @@
               <option value="5">Sexta-feira</option>
               <option value="6">Sábado</option>
             </select>
+          </div>
+          <div>
+            <label for="newEmpCpf">CPF</label>
+            <input id="newEmpCpf" type="text" placeholder="000.000.000-00">
+          </div>
+          <div>
+            <label for="newEmpCargo">Cargo</label>
+            <input id="newEmpCargo" type="text" placeholder="Ex: Vendedora">
+          </div>
+          <div>
+            <label for="newEmpAdmissao">Data de admissão</label>
+            <input id="newEmpAdmissao" type="date">
           </div>
         </div>
         <div class="btnrow"><button class="btn btn-primary btn-sm" id="addEmpBtn">Adicionar funcionária(o)</button></div>
@@ -495,6 +509,31 @@
     <div class="btnrow" style="justify-content:center; margin-top:14px;">
       <button class="btn btn-primary btn-sm" id="pdfGenerateBtn">🖨 Gerar PDF</button>
       <button class="btn btn-ghost btn-sm" id="pdfCancelBtn">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="camModal hidden" id="scheduleModal">
+  <div class="camBox" style="max-width:480px; text-align:left;">
+    <div class="camTitle" style="text-align:center;">Horário de trabalho — <span id="scheduleEmpName"></span></div>
+    <p class="hint" style="margin:-4px 0 8px;">Deixe em branco os dias sem expediente (folga). Isso é usado pra calcular as horas extras no cartão de ponto.</p>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:4px 2px;">Dia</th>
+            <th style="padding:4px 2px;">Entrada</th>
+            <th style="padding:4px 2px;">Saída alm.</th>
+            <th style="padding:4px 2px;">Retorno</th>
+            <th style="padding:4px 2px;">Saída</th>
+          </tr>
+        </thead>
+        <tbody id="scheduleRows"></tbody>
+      </table>
+    </div>
+    <div class="btnrow" style="justify-content:center; margin-top:14px;">
+      <button class="btn btn-primary btn-sm" id="scheduleSaveBtn">Salvar horário</button>
+      <button class="btn btn-ghost btn-sm" id="scheduleCancelBtn">Cancelar</button>
     </div>
   </div>
 </div>
@@ -671,7 +710,24 @@ function computeDayMinutes(rec){
 function diffMin(t1, t2){
   const [h1,m1,s1] = t1.split(':').map(Number);
   const [h2,m2,s2] = t2.split(':').map(Number);
-  return ((h2*3600+m2*60+s2) - (h1*3600+m1*60+s1))/60;
+  return ((h2*3600+m2*60+(s2||0)) - (h1*3600+m1*60+(s1||0)))/60;
+}
+/* horário previsto (schedule) usa campos HH:MM, sem segundos */
+function computeScheduleMinutes(sched){
+  if(!sched) return null;
+  let mins = 0, has = false;
+  if(sched.entrada && sched.almocoInicio){ mins += diffMin(sched.entrada, sched.almocoInicio); has = true; }
+  if(sched.almocoFim && sched.saida){ mins += diffMin(sched.almocoFim, sched.saida); has = true; }
+  if(!has && sched.entrada && sched.saida){ mins += diffMin(sched.entrada, sched.saida); has = true; }
+  return has ? mins : null;
+}
+function formatSchedule(sched){
+  if(!sched) return '—';
+  const parts = [];
+  if(sched.entrada && sched.almocoInicio) parts.push(`${sched.entrada}-${sched.almocoInicio}`);
+  if(sched.almocoFim && sched.saida) parts.push(`${sched.almocoFim}-${sched.saida}`);
+  if(!parts.length && sched.entrada && sched.saida) parts.push(`${sched.entrada}-${sched.saida}`);
+  return parts.length ? parts.join(' ') : '—';
 }
 function fmtMinutes(mins){
   if(mins==null || isNaN(mins)) return '--';
@@ -886,15 +942,17 @@ function renderEmpList(){
   if(!EMPLOYEES.length){ wrap.innerHTML = '<p class="hint">Nenhuma funcionária cadastrada ainda.</p>'; return; }
   wrap.innerHTML = EMPLOYEES.map(e=>{
     const dayOffLabel = (e.dayOff!==undefined && e.dayOff!==null && e.dayOff!=='') ? ` · folga ${WEEKDAY_NAMES[e.dayOff]}` : '';
+    const cargoLabel = e.cargo ? ` · ${e.cargo}` : '';
     return `
     <div class="emprow">
-      <div><div class="nm">${e.name}</div><div class="meta">${e.dailyHours || 8}h/dia · PIN ${e.pin ? '••••' : '⚠ não definido'}${dayOffLabel}</div></div>
+      <div><div class="nm">${e.name}</div><div class="meta">${e.dailyHours || 8}h/dia · PIN ${e.pin ? '••••' : '⚠ não definido'}${cargoLabel}${dayOffLabel}</div></div>
       <div class="btnrow" style="margin:0;flex-wrap:wrap;justify-content:flex-end;">
         <select class="dayoffsel" data-dayoff="${e.id}" style="width:auto;padding:6px 8px;font-size:12px;">
           <option value="">Sem folga fixa</option>
           ${WEEKDAY_NAMES.map((n,i)=>`<option value="${i}" ${String(e.dayOff)===String(i)?'selected':''}>Folga ${n}</option>`).join('')}
         </select>
         <button class="btn btn-ghost btn-sm" data-edit="${e.id}">✏️ Editar cadastro</button>
+        <button class="btn btn-ghost btn-sm" data-schedule="${e.id}">🕐 Horário</button>
         <button class="btn btn-ghost btn-sm" data-pin="${e.id}">Redefinir PIN</button>
         <button class="btn btn-danger btn-sm" data-remove="${e.id}">Remover</button>
       </div>
@@ -908,18 +966,31 @@ function renderEmpList(){
       renderEmpSelect(); renderEmpList();
     };
   });
+  wrap.querySelectorAll('[data-schedule]').forEach(btn=>{
+    btn.onclick = ()=> openScheduleModal(btn.dataset.schedule);
+  });
   wrap.querySelectorAll('[data-edit]').forEach(btn=>{
     btn.onclick = async ()=>{
       const emp = EMPLOYEES.find(x=>x.id===btn.dataset.edit);
-      const newName = prompt('Nome da funcionária:', emp.name);
+      const newName = prompt('Nome completo da funcionária:', emp.name);
       if(newName===null) return;
       if(!newName.trim()){ toast('O nome não pode ficar em branco.'); return; }
       const newHoursStr = prompt('Carga horária diária prevista (em horas, ex: 8 ou 6.5):', String(emp.dailyHours || 8));
       if(newHoursStr===null) return;
       const newHours = parseFloat(newHoursStr.replace(',','.'));
       if(isNaN(newHours) || newHours<=0 || newHours>16){ toast('Digite um número de horas válido (0 a 16).'); return; }
+      const newCpf = prompt('CPF:', emp.cpf || '');
+      if(newCpf===null) return;
+      const newCargo = prompt('Cargo:', emp.cargo || '');
+      if(newCargo===null) return;
+      const newAdmissao = prompt('Data de admissão (AAAA-MM-DD, ex: 2026-03-15):', emp.admissionDate || '');
+      if(newAdmissao===null) return;
+      if(newAdmissao.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(newAdmissao.trim())){ toast('Data inválida. Use o formato AAAA-MM-DD.'); return; }
       emp.name = newName.trim();
       emp.dailyHours = newHours;
+      emp.cpf = newCpf.trim();
+      emp.cargo = newCargo.trim();
+      emp.admissionDate = newAdmissao.trim();
       await sset('employees', EMPLOYEES);
       renderEmpSelect(); renderEmpList(); renderTodayOverview();
       toast(`Cadastro de ${emp.name} atualizado.`);
@@ -948,6 +1019,49 @@ function renderEmpList(){
     };
   });
 }
+
+/* ---------------- horário semanal previsto (por funcionária) ---------------- */
+let scheduleEmpId = null;
+function openScheduleModal(empId){
+  const emp = EMPLOYEES.find(e=>e.id===empId);
+  if(!emp) return;
+  scheduleEmpId = empId;
+  document.getElementById('scheduleEmpName').textContent = emp.name;
+  const sched = emp.schedule || {};
+  const rowsHtml = WEEKDAY_NAMES.map((name,i)=>{
+    const s = sched[i] || sched[String(i)] || {};
+    return `<tr>
+      <td style="white-space:nowrap;font-weight:600;">${name}</td>
+      <td><input type="time" data-day="${i}" data-field="entrada" value="${s.entrada||''}"></td>
+      <td><input type="time" data-day="${i}" data-field="almocoInicio" value="${s.almocoInicio||''}"></td>
+      <td><input type="time" data-day="${i}" data-field="almocoFim" value="${s.almocoFim||''}"></td>
+      <td><input type="time" data-day="${i}" data-field="saida" value="${s.saida||''}"></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('scheduleRows').innerHTML = rowsHtml;
+  document.getElementById('scheduleModal').classList.remove('hidden');
+}
+document.getElementById('scheduleCancelBtn').onclick = ()=> document.getElementById('scheduleModal').classList.add('hidden');
+document.getElementById('scheduleSaveBtn').onclick = async ()=>{
+  const emp = EMPLOYEES.find(e=>e.id===scheduleEmpId);
+  if(!emp){ toast('Funcionária não encontrada.'); return; }
+  const schedule = {};
+  document.querySelectorAll('#scheduleRows tr').forEach(tr=>{
+    const inputs = tr.querySelectorAll('input[type=time]');
+    const day = inputs[0].dataset.day;
+    const entrada = inputs[0].value;
+    const almocoInicio = inputs[1].value;
+    const almocoFim = inputs[2].value;
+    const saida = inputs[3].value;
+    if(entrada || almocoInicio || almocoFim || saida){
+      schedule[day] = { entrada, almocoInicio, almocoFim, saida };
+    }
+  });
+  emp.schedule = schedule;
+  await sset('employees', EMPLOYEES);
+  document.getElementById('scheduleModal').classList.add('hidden');
+  toast(`Horário de ${emp.name} salvo.`);
+};
 
 document.getElementById('useMyLocationBtn').onclick = ()=>{
   if(!navigator.geolocation){ toast('Geolocalização não suportada neste navegador.'); return; }
@@ -991,14 +1105,20 @@ document.getElementById('addEmpBtn').onclick = async ()=>{
   const pin = document.getElementById('newEmpPin').value.trim();
   const dayOffVal = document.getElementById('newEmpDayOff').value;
   const dayOff = dayOffVal === '' ? null : Number(dayOffVal);
+  const cpf = document.getElementById('newEmpCpf').value.trim();
+  const cargo = document.getElementById('newEmpCargo').value.trim();
+  const admissionDate = document.getElementById('newEmpAdmissao').value;
   if(!name){ toast('Digite o nome da funcionária.'); return; }
   if(!/^\d{4}$/.test(pin)){ toast('O PIN precisa ter exatamente 4 números.'); return; }
-  EMPLOYEES.push({ id: uid(), name, dailyHours: hours, pin, dayOff });
+  EMPLOYEES.push({ id: uid(), name, dailyHours: hours, pin, dayOff, cpf, cargo, admissionDate });
   await sset('employees', EMPLOYEES);
   document.getElementById('newEmpName').value='';
   document.getElementById('newEmpHours').value='';
   document.getElementById('newEmpPin').value='';
   document.getElementById('newEmpDayOff').value='';
+  document.getElementById('newEmpCpf').value='';
+  document.getElementById('newEmpCargo').value='';
+  document.getElementById('newEmpAdmissao').value='';
   renderEmpSelect(); renderEmpList();
   toast(`${name} cadastrada.`);
 };
@@ -1224,7 +1344,7 @@ document.getElementById('pdfGenerateBtn').onclick = async ()=>{
   const monthLabel = new Date(y, m-1, 1).toLocaleDateString('pt-BR', {month:'long', year:'numeric'});
 
   let rowsHtml = '';
-  let totalMins = 0, expectedTotalMins = 0;
+  let totalMins = 0, expectedTotalMins = 0, extraTotalMins = 0;
   for(let d=1; d<=nDays; d++){
     const dKey = `${monthInput}-${pad(d)}`;
     const rec = monthData[dKey] || {};
@@ -1233,30 +1353,43 @@ document.getElementById('pdfGenerateBtn').onclick = async ()=>{
     const weekday = new Date(y, m-1, d).getDay();
     const isDayOff = emp.dayOff!==undefined && emp.dayOff!==null && emp.dayOff!=='' && Number(emp.dayOff)===weekday;
     const isStoreClosed = CONFIG && CONFIG.closedWeekdays && CONFIG.closedWeekdays.includes(weekday);
-    if(hasAny){ totalMins += mins; expectedTotalMins += expectedDaily*60; }
+
+    const sched = emp.schedule && (emp.schedule[weekday] || emp.schedule[String(weekday)]);
+    let expectedMins = computeScheduleMinutes(sched);
+    let previstoLabel = formatSchedule(sched);
+    if(expectedMins==null){ expectedMins = expectedDaily*60; if(previstoLabel==='—') previstoLabel = `${expectedDaily}h`; }
+
+    if(hasAny){
+      totalMins += mins;
+      expectedTotalMins += expectedMins;
+      extraTotalMins += Math.max(0, mins - expectedMins);
+    }
     if(isStoreClosed && !hasAny){
-      rowsHtml += `<tr><td>${pad(d)}/${pad(m)}</td><td>${weekdayShort(y,m,d)}</td><td colspan="4" style="color:#999;">Loja fechada</td><td>—</td></tr>`;
+      rowsHtml += `<tr><td>${pad(d)}/${pad(m)}</td><td>${weekdayShort(y,m,d)}</td><td colspan="5" style="color:#999;">Loja fechada</td><td>—</td><td>—</td></tr>`;
       continue;
     }
     if(isDayOff && !hasAny){
-      rowsHtml += `<tr><td>${pad(d)}/${pad(m)}</td><td>${weekdayShort(y,m,d)}</td><td colspan="4" style="color:#999;">Folga</td><td>—</td></tr>`;
+      rowsHtml += `<tr><td>${pad(d)}/${pad(m)}</td><td>${weekdayShort(y,m,d)}</td><td colspan="5" style="color:#999;">Folga</td><td>—</td><td>—</td></tr>`;
       continue;
     }
+    const extraLabel = hasAny ? fmtMinutes(Math.max(0, mins - expectedMins)) : '—';
     rowsHtml += `<tr>
       <td>${pad(d)}/${pad(m)}</td>
       <td>${weekdayShort(y,m,d)}</td>
+      <td>${previstoLabel}</td>
       <td>${rec.entrada||'—'}</td>
       <td>${rec.almocoInicio||'—'}</td>
       <td>${rec.almocoFim||'—'}</td>
       <td>${rec.saida||'—'}</td>
       <td>${hasAny?fmtMinutes(mins):'—'}</td>
+      <td>${extraLabel}</td>
     </tr>`;
   }
   const balance = totalMins - expectedTotalMins;
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="UTF-8">
-<title>Espelho de Ponto - ${emp.name} - ${monthInput}</title>
+<title>Cartão de Ponto - ${emp.name} - ${monthInput}</title>
 <style>
   @page { size: A4; margin: 16mm; }
   *{box-sizing:border-box;}
@@ -1265,7 +1398,8 @@ document.getElementById('pdfGenerateBtn').onclick = async ()=>{
   .head h1{font-size:16px; margin:0 0 4px;}
   .head .meta{font-size:11px; color:#444;}
   h2.titulo{text-align:center; font-size:13px; text-transform:uppercase; letter-spacing:.5px; margin:14px 0;}
-  .infobox{display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:8px;}
+  .infobox{font-size:11.5px; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:8px;}
+  .infobox div{margin-bottom:2px;}
   table{width:100%; border-collapse:collapse; margin-top:6px;}
   th, td{border:1px solid #999; padding:4px 5px; text-align:center; font-size:11px;}
   th{background:#eee;}
@@ -1281,16 +1415,18 @@ document.getElementById('pdfGenerateBtn').onclick = async ()=>{
     <h1>${companyName}</h1>
     <div class="meta">${companyCnpj ? 'CNPJ: '+companyCnpj : ''}</div>
   </div>
-  <h2 class="titulo">Espelho de Ponto — ${monthLabel}</h2>
+  <h2 class="titulo">Cartão de Ponto — ${monthLabel}</h2>
   <div class="infobox">
     <div><b>Funcionária(o):</b> ${emp.name}</div>
-    <div><b>Carga horária diária:</b> ${expectedDaily}h</div>
+    <div><b>CPF:</b> ${emp.cpf || '—'}</div>
+    <div><b>Cargo:</b> ${emp.cargo || '—'}</div>
+    <div><b>Data de admissão:</b> ${emp.admissionDate ? emp.admissionDate.split('-').reverse().join('/') : '—'}</div>
   </div>
   <table>
-    <thead><tr><th>Dia</th><th>Sem.</th><th>Entrada</th><th>Saída alm.</th><th>Retorno</th><th>Saída</th><th>Horas</th></tr></thead>
+    <thead><tr><th>Dia</th><th>Sem.</th><th>Previsto</th><th>Entrada 1</th><th>Saída 1</th><th>Entrada 2</th><th>Saída 2</th><th>Horas</th><th>Extras</th></tr></thead>
     <tbody>${rowsHtml}
-      <tr class="total"><td colspan="6">Total do mês (previsto ${decHours(expectedTotalMins)}h)</td><td>${decHours(totalMins)}h</td></tr>
-      <tr class="total"><td colspan="6">Saldo</td><td>${balance>=0?'+':''}${fmtMinutes(balance)}</td></tr>
+      <tr class="total"><td colspan="7">Total do mês (previsto ${decHours(expectedTotalMins)}h)</td><td>${decHours(totalMins)}h</td><td>${decHours(extraTotalMins)}h</td></tr>
+      <tr class="total"><td colspan="8">Saldo</td><td>${balance>=0?'+':''}${fmtMinutes(balance)}</td></tr>
     </tbody>
   </table>
   <div class="assinaturas">
