@@ -1235,8 +1235,8 @@ async function generatePrintSheet(){
       Saldo: ${balance>=0?'+':''}${fmtMinutes(balance)}
     </div>
     <div class="ps-signatures">
-      <div class="ps-sigbox"><div class="ps-sigline">${emp.name}</div>Assinatura da funcionária(o)</div>
-      <div class="ps-sigbox"><div class="ps-sigline">${CONFIG.name || ''}</div>Assinatura do empregador</div>
+      <div class="ps-sigbox"><div class="ps-sigline">${emp.name}${emp.cpf ? '<br>CPF: '+emp.cpf : ''}</div>Assinatura da funcionária(o)</div>
+      <div class="ps-sigbox"><div class="ps-sigline">${CONFIG.name || ''}${CONFIG.cnpj ? '<br>CNPJ: '+CONFIG.cnpj : ''}</div>Assinatura do empregador</div>
     </div>
     <div class="ps-footer">Documento gerado pelo sistema de registro de ponto da empresa — confere com os horários batidos com geolocalização e foto de confirmação.</div>
   `;
