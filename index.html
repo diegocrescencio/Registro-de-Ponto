@@ -195,7 +195,8 @@
   .emprow .nm{font-weight:600;}
   .emprow .meta{color:var(--muted);font-size:11.5px;font-family:'IBM Plex Mono',monospace;}
 
-  table.ledger{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;}
+  table.ledger{width:100%;min-width:680px;border-collapse:collapse;font-size:12px;margin-top:10px;}
+  #ledgerWrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
   table.ledger th{
     text-align:left;font-family:'IBM Plex Mono',monospace;font-size:10.5px;
     text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--ink);
@@ -1076,11 +1077,16 @@ async function renderLedger(){
     const weekday = new Date(y, m-1, d).getDay();
     const isDayOff = emp && emp.dayOff!==undefined && emp.dayOff!==null && Number(emp.dayOff)===weekday;
     const isStoreClosed = CONFIG && CONFIG.closedWeekdays && CONFIG.closedWeekdays.includes(weekday);
-    if(hasAny){ totalMins += mins; expectedTotalMins += expectedDaily*60; }
+    const isWorkday = !isDayOff && !isStoreClosed;
+    const previstoMins = isWorkday ? expectedDaily*60 : 0;
+    if(hasAny){ totalMins += mins; }
+    if(isWorkday){ expectedTotalMins += previstoMins; }
     if(isStoreClosed && !hasAny){
       rows += `<tr style="opacity:.55;">
         <td>${pad(d)}/${pad(m)} <span style="color:var(--muted)">${weekdayShort(y,m,d)}</span></td>
         <td colspan="4" style="text-align:center;color:var(--danger);font-weight:600;">🏬 Loja fechada</td>
+        <td>—</td>
+        <td>—</td>
         <td>—</td>
         <td></td>
         <td></td>
@@ -1092,25 +1098,32 @@ async function renderLedger(){
         <td>${pad(d)}/${pad(m)} <span style="color:var(--muted)">${weekdayShort(y,m,d)}</span></td>
         <td colspan="4" style="text-align:center;color:var(--teal-dark);font-weight:600;">🟦 Folga fixa</td>
         <td>—</td>
+        <td>—</td>
+        <td>—</td>
         <td></td>
         <td></td>
       </tr>`;
       continue;
     }
-    rows += `<tr>
-      <td>${pad(d)}/${pad(m)} <span style="color:var(--muted)">${weekdayShort(y,m,d)}</span>${isDayOff?' <span style="color:var(--teal-dark);font-size:11px;">(folga)</span>':''}</td>
+    const daySaldo = mins - previstoMins;
+    rows += `<tr${!hasAny ? ' style="background:rgba(181,67,46,0.06);"' : ''}>
+      <td>${pad(d)}/${pad(m)} <span style="color:var(--muted)">${weekdayShort(y,m,d)}</span></td>
       <td class="edit" data-day="${dKey}" data-field="entrada">${rec.entrada || '—'}</td>
       <td class="edit" data-day="${dKey}" data-field="almocoInicio">${rec.almocoInicio || '—'}</td>
       <td class="edit" data-day="${dKey}" data-field="almocoFim">${rec.almocoFim || '—'}</td>
       <td class="edit" data-day="${dKey}" data-field="saida">${rec.saida || '—'}</td>
-      <td>${hasAny ? fmtMinutes(mins) : '—'}</td>
+      <td>${hasAny ? fmtMinutes(mins) : (isWorkday ? 'Falta' : '—')}</td>
+      <td>${fmtMinutes(previstoMins)}</td>
+      <td class="${daySaldo>=0?'balpos':'balneg'}">${hasAny ? (daySaldo>=0?'+':'')+fmtMinutes(daySaldo) : (isWorkday ? '-'+fmtMinutes(previstoMins) : '—')}</td>
       <td>${hasAny ? `<button class="btn btn-ghost btn-sm" data-photos="${dKey}">📷</button>` : ''}</td>
       <td>${hasAny ? `<button class="btn btn-ghost btn-sm" data-wipeday="${dKey}" title="Apagar este dia">🗑</button>` : ''}</td>
     </tr>`;
   }
   const balance = totalMins - expectedTotalMins;
   rows += `<tr class="total">
-    <td colspan="5">Total do mês (${decHours(totalMins)}h) · previsto ${decHours(expectedTotalMins)}h</td>
+    <td colspan="5">Total do mês trabalhado</td>
+    <td>${decHours(totalMins)}h</td>
+    <td>${decHours(expectedTotalMins)}h</td>
     <td class="${balance>=0?'balpos':'balneg'}">${balance>=0?'+':''}${fmtMinutes(balance)}</td>
     <td></td>
     <td></td>
@@ -1118,7 +1131,7 @@ async function renderLedger(){
 
   wrap.innerHTML = `
     <table class="ledger">
-      <thead><tr><th>Dia</th><th>Entrada</th><th>Saída alm.</th><th>Retorno</th><th>Saída</th><th>Horas</th><th>Foto</th><th></th></tr></thead>
+      <thead><tr><th>Dia</th><th>Entrada</th><th>Saída alm.</th><th>Retorno</th><th>Saída</th><th>Horas</th><th>Previsto</th><th>Saldo</th><th>Foto</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
 
@@ -1190,20 +1203,26 @@ async function generatePrintSheet(){
     const weekday = new Date(y, m-1, d).getDay();
     const isDayOff = emp && emp.dayOff!==undefined && emp.dayOff!==null && Number(emp.dayOff)===weekday;
     const isStoreClosed = CONFIG && CONFIG.closedWeekdays && CONFIG.closedWeekdays.includes(weekday);
-    if(hasAny){ totalMins += mins; expectedTotalMins += expectedDaily*60; }
+    const isWorkday = !isDayOff && !isStoreClosed;
+    const previstoMins = isWorkday ? expectedDaily*60 : 0;
+    if(hasAny){ totalMins += mins; }
+    if(isWorkday){ expectedTotalMins += previstoMins; }
     const diaLabel = `${pad(d)}/${pad(m)} (${weekdayShort(y,m,d)})`;
     if(isStoreClosed && !hasAny){
-      rows += `<tr><td>${diaLabel}</td><td colspan="4">Loja fechada</td><td>—</td></tr>`;
+      rows += `<tr><td>${diaLabel}</td><td colspan="4">Loja fechada</td><td>—</td><td>—</td><td>—</td></tr>`;
     } else if(isDayOff && !hasAny){
-      rows += `<tr><td>${diaLabel}</td><td colspan="4">Folga fixa</td><td>—</td></tr>`;
+      rows += `<tr><td>${diaLabel}</td><td colspan="4">Folga fixa</td><td>—</td><td>—</td><td>—</td></tr>`;
     } else {
+      const daySaldo = mins - previstoMins;
       rows += `<tr>
         <td>${diaLabel}</td>
         <td>${rec.entrada || '—'}</td>
         <td>${rec.almocoInicio || '—'}</td>
         <td>${rec.almocoFim || '—'}</td>
         <td>${rec.saida || '—'}</td>
-        <td>${hasAny ? fmtMinutes(mins) : '—'}</td>
+        <td>${hasAny ? fmtMinutes(mins) : (isWorkday ? 'Falta' : '—')}</td>
+        <td>${fmtMinutes(previstoMins)}</td>
+        <td>${hasAny ? (daySaldo>=0?'+':'')+fmtMinutes(daySaldo) : (isWorkday ? '-'+fmtMinutes(previstoMins) : '—')}</td>
       </tr>`;
     }
   }
@@ -1226,7 +1245,7 @@ async function generatePrintSheet(){
       <span><b>Carga horária diária prevista:</b> ${decHours(expectedDaily*60)}h</span>
     </div>
     <table class="ps-table">
-      <thead><tr><th>Dia</th><th>Entrada</th><th>Saída almoço</th><th>Retorno</th><th>Saída</th><th>Horas</th></tr></thead>
+      <thead><tr><th>Dia</th><th>Entrada</th><th>Saída almoço</th><th>Retorno</th><th>Saída</th><th>Horas</th><th>Previsto</th><th>Saldo</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="ps-total">
